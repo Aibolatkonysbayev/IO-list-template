@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>I&C IO List Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Light gray background */
+        }
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1000; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto; /* 15% from the top and centered */
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%; /* Could be more or less, depending on screen size */
+            max-width: 500px;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        /* Custom scrollbar for table container */
+        .table-container::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .table-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .table-container::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        .table-container::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        /* Ensure table headers are sticky */
+        thead th {
+            position: sticky;
+            top: 0;
+            background-color: #e5e7eb; /* Tailwind gray-200 */
+            z-index: 10;
+        }
+        /* Add some subtle hover effects for table rows */
+        tbody tr:hover {
+            background-color: #f9fafb; /* Tailwind gray-50 */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 p-4 md:p-8">
+
+    <div class="container mx-auto max-w-7xl">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl md:text-4xl font-bold text-blue-600">I&C IO List Generator</h1>
+            <p class="text-gray-600 mt-2">Create, manage, and export your Instrumentation & Control IO Lists.</p>
+        </header>
+
+        <div class="mb-4 p-3 bg-blue-100 border border-blue-300 rounded-lg text-sm text-blue-700">
+            <p><strong>App ID:</strong> <span id="appIdDisplay"></span></p>
+            <p><strong>User ID:</strong> <span id="userIdDisplay">Loading...</span></p>
+            <p id="authStatus" class="mt-1">Initializing Firebase...</p>
+        </div>
+        
+        <div id="messageArea" class="mb-4 p-3 rounded-lg text-sm hidden"></div>
+
+        <div class="bg-white p-6 rounded-xl shadow-lg mb-8">
+            <h2 class="text-2xl font-semibold mb-6 text-gray-700 border-b pb-3">Add New IO Point</h2>
+            <form id="ioPointForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div>
+                    <label for="tagNo" class="block text-sm font-medium text-gray-700 mb-1">Tag No.:</label>
+                    <input type="text" id="tagNo" name="tagNo" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., TE-1001A">
+                </div>
+                <div>
+                    <label for="serviceDescription" class="block text-sm font-medium text-gray-700 mb-1">Service Description:</label>
+                    <input type="text" id="serviceDescription" name="serviceDescription" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., REACTOR TEMP.">
+                </div>
+                <div>
+                    <label for="pidNo" class="block text-sm font-medium text-gray-700 mb-1">P&ID No.:</label>
+                    <input type="text" id="pidNo" name="pidNo" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., P-101">
+                </div>
+                <div>
+                    <label for="deviceType" class="block text-sm font-medium text-gray-700 mb-1">Device Type:</label>
+                    <input type="text" id="deviceType" name="deviceType" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., Thermocouple">
+                </div>
+                <div>
+                    <label for="location" class="block text-sm font-medium text-gray-700 mb-1">Location:</label>
+                    <input type="text" id="location" name="location" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., Field, Panel JB-01">
+                </div>
+                <div>
+                    <label for="ioType" class="block text-sm font-medium text-gray-700 mb-1">I/O Type:</label>
+                    <select id="ioType" name="ioType" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                        <option value="AI">AI (Analog Input)</option>
+                        <option value="AO">AO (Analog Output)</option>
+                        <option value="DI">DI (Digital Input)</option>
+                        <option value="DO">DO (Digital Output)</option>
+                        <option value="PI">PI (Pulse Input)</option>
+                        <option value="PO">PO (Pulse Output)</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="signalType" class="block text-sm font-medium text-gray-700 mb-1">Signal Type / Range:</label>
+                    <input type="text" id="signalType" name="signalType" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 4-20mA, 24VDC">
+                </div>
+                <div>
+                    <label for="engUnits" class="block text-sm font-medium text-gray-700 mb-1">Eng. Units:</label>
+                    <input type="text" id="engUnits" name="engUnits" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., DegC, barg">
+                </div>
+                <div>
+                    <label for="lrv" class="block text-sm font-medium text-gray-700 mb-1">LRV:</label>
+                    <input type="number" step="any" id="lrv" name="lrv" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 0">
+                </div>
+                <div>
+                    <label for="urv" class="block text-sm font-medium text-gray-700 mb-1">URV:</label>
+                    <input type="number" step="any" id="urv" name="urv" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 100">
+                </div>
+                <div>
+                    <label for="alarmLL" class="block text-sm font-medium text-gray-700 mb-1">Alarm LL:</label>
+                    <input type="number" step="any" id="alarmLL" name="alarmLL" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 10.0">
+                </div>
+                <div>
+                    <label for="alarmL" class="block text-sm font-medium text-gray-700 mb-1">Alarm L:</label>
+                    <input type="number" step="any" id="alarmL" name="alarmL" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 20.0">
+                </div>
+                 <div>
+                    <label for="alarmH" class="block text-sm font-medium text-gray-700 mb-1">Alarm H:</label>
+                    <input type="number" step="any" id="alarmH" name="alarmH" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 80.0">
+                </div>
+                <div>
+                    <label for="alarmHH" class="block text-sm font-medium text-gray-700 mb-1">Alarm HH:</label>
+                    <input type="number" step="any" id="alarmHH" name="alarmHH" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 90.0">
+                </div>
+                <div>
+                    <label for="systemController" class="block text-sm font-medium text-gray-700 mb-1">System / Controller:</label>
+                    <input type="text" id="systemController" name="systemController" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., PLC-01">
+                </div>
+                <div>
+                    <label for="ioAddress" class="block text-sm font-medium text-gray-700 mb-1">I/O Address / Channel:</label>
+                    <input type="text" id="ioAddress" name="ioAddress" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., AI-CH01">
+                </div>
+                <div class="md:col-span-2 lg:col-span-3">
+                    <label for="remarks" class="block text-sm font-medium text-gray-700 mb-1">Remarks:</label>
+                    <textarea id="remarks" name="remarks" rows="2" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="Any additional notes..."></textarea>
+                </div>
+                <div class="md:col-span-2 lg:col-span-3 flex justify-end space-x-3 mt-4">
+                    <button type="button" id="addIoPointBtn" class="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition duration-150">
+                        Add IO Point
+                    </button>
+                     <button type="button" id="clearFormBtn" class="px-6 py-2 bg-gray-500 text-white font-semibold rounded-lg shadow-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50 transition duration-150">
+                        Clear Form
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+            <div class="flex flex-col sm:flex-row justify-between items-center mb-6 pb-3 border-b">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-3 sm:mb-0">Current IO List</h2>
+                <div class="flex space-x-3">
+                     <button id="saveListBtn" class="px-5 py-2 bg-green-500 text-white font-semibold rounded-lg shadow-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-50 transition duration-150">
+                        Save List
+                    </button>
+                    <button id="exportCsvBtn" class="px-5 py-2 bg-purple-500 text-white font-semibold rounded-lg shadow-md hover:bg-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 transition duration-150">
+                        Export to CSV
+                    </button>
+                </div>
+            </div>
+            <div class="table-container overflow-x-auto max-h-[500px]">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-200">
+                        <tr>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">#</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Tag No.</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Service Desc.</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">P&ID</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Device Type</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Location</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">I/O Type</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Signal</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Units</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">LRV</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">URV</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">LL</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">L</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">H</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">HH</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">System</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Address</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Remarks</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ioListTableBody" class="bg-white divide-y divide-gray-200">
+                        </tbody>
+                </table>
+            </div>
+             <p id="noDataMessage" class="text-center text-gray-500 py-8">No IO points added yet.</p>
+        </div>
+    </div>
+
+    <div id="customModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeModal()">&times;</span>
+            <p id="modalMessageText" class="text-gray-700 text-lg"></p>
+            <div class="mt-6 flex justify-end space-x-3">
+                <button id="modalConfirmBtn" class="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600">Confirm</button>
+                <button id="modalCancelBtn" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400" onclick="closeModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+    
+    <script type="module">
+        // Firebase and Firestore imports
+        import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, deleteDoc, updateDoc, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Firebase Configuration and Initialization ---
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "YOUR_API_KEY", authDomain: "YOUR_AUTH_DOMAIN", projectId: "YOUR_PROJECT_ID" }; // Fallback for local dev
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'io-list-generator-dev';
+        
+        let app;
+        if (!getApps().length) {
+            app = initializeApp(firebaseConfig);
+        } else {
+            app = getApp();
+        }
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        // setLogLevel('debug'); // Uncomment for Firestore debugging
+
+        let currentUserId = null;
+        let ioList = []; // Local array to store IO points
+        let ioListDocRef = null; // Firestore document reference for the current user's list
+        let unsubscribeSnapshot = null; // To detach listener
+
+        const appIdDisplay = document.getElementById('appIdDisplay');
+        const userIdDisplay = document.getElementById('userIdDisplay');
+        const authStatus = document.getElementById('authStatus');
+        appIdDisplay.textContent = appId;
+
+        // --- UI Elements ---
+        const form = document.getElementById('ioPointForm');
+        const addIoPointBtn = document.getElementById('addIoPointBtn');
+        const clearFormBtn = document.getElementById('clearFormBtn');
+        const tableBody = document.getElementById('ioListTableBody');
+        const exportCsvBtn = document.getElementById('exportCsvBtn');
+        const saveListBtn = document.getElementById('saveListBtn');
+        const noDataMessage = document.getElementById('noDataMessage');
+        
+        const messageArea = document.getElementById('messageArea');
+
+        // Modal elements
+        const customModal = document.getElementById('customModal');
+        const modalMessageText = document.getElementById('modalMessageText');
+        const modalConfirmBtn = document.getElementById('modalConfirmBtn');
+        const modalCancelBtn = document.getElementById('modalCancelBtn');
+        let confirmAction = null;
+
+
+        // --- Authentication ---
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUserId = user.uid;
+                userIdDisplay.textContent = currentUserId;
+                authStatus.textContent = `Authenticated as: ${user.isAnonymous ? 'Anonymous User' : 'Logged-in User'}`;
+                authStatus.className = "mt-1 text-green-700";
+                
+                // Path for private user data: /artifacts/{appId}/users/{userId}/{collectionName}/{documentId}
+                // Using a single document for the user's IO list for simplicity.
+                const listId = `user_${currentUserId}_io_list`;
+                ioListDocRef = doc(db, "artifacts", appId, "users", currentUserId, "ioLists", listId);
+                
+                loadIoListFromFirestore();
+            } else {
+                currentUserId = null;
+                userIdDisplay.textContent = "Not authenticated";
+                authStatus.textContent = "Attempting anonymous sign-in...";
+                authStatus.className = "mt-1 text-yellow-700";
+                ioList = []; // Clear local list if not authenticated
+                renderTable(); // Clear table
+                if (unsubscribeSnapshot) unsubscribeSnapshot(); // Detach listener
+
+                // Attempt to sign in
+                try {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                         await setPersistence(auth, browserLocalPersistence); // Persist auth state
+                         await signInWithCustomToken(auth, __initial_auth_token);
+                         console.log("Signed in with custom token.");
+                    } else {
+                         await signInAnonymously(auth);
+                         console.log("Signed in anonymously.");
+                    }
+                } catch (error) {
+                    console.error("Error during sign-in:", error);
+                    authStatus.textContent = "Authentication failed. Please refresh.";
+                    authStatus.className = "mt-1 text-red-700";
+                    showMessage(`Error during sign-in: ${error.message}`, 'error');
+                }
+            }
+        });
+
+        // --- Modal Functions ---
+        function showModal(message, onConfirm, showCancel = true) {
+            modalMessageText.textContent = message;
+            confirmAction = onConfirm;
+            modalConfirmBtn.style.display = 'inline-block';
+            modalCancelBtn.style.display = showCancel ? 'inline-block' : 'none';
+            customModal.style.display = 'block';
+        }
+
+        function closeModal() {
+            customModal.style.display = 'none';
+            confirmAction = null;
+        }
+
+        modalConfirmBtn.addEventListener('click', () => {
+            if (confirmAction) {
+                confirmAction();
+            }
+            closeModal();
+        });
+        
+        // --- Utility to show messages ---
+        function showMessage(message, type = 'info') {
+            messageArea.textContent = message;
+            messageArea.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'bg-red-100', 'text-red-700', 'bg-blue-100', 'text-blue-700');
+            if (type === 'success') {
+                messageArea.classList.add('bg-green-100', 'text-green-700');
+            } else if (type === 'error') {
+                messageArea.classList.add('bg-red-100', 'text-red-700');
+            } else { // info
+                messageArea.classList.add('bg-blue-100', 'text-blue-700');
+            }
+            messageArea.classList.remove('hidden');
+            setTimeout(() => {
+                messageArea.classList.add('hidden');
+            }, 5000); // Hide after 5 seconds
+        }
+
+
+        // --- CRUD Operations & Table Rendering ---
+        function addIoPoint(event) {
+            event.preventDefault();
+            if (!currentUserId || !ioListDocRef) {
+                showMessage("Not authenticated. Cannot add IO point.", "error");
+                return;
+            }
+
+            const newPoint = {
+                id: crypto.randomUUID(), // Unique ID for each point
+                tagNo: form.tagNo.value.trim(),
+                serviceDescription: form.serviceDescription.value.trim(),
+                pidNo: form.pidNo.value.trim(),
+                deviceType: form.deviceType.value.trim(),
+                location: form.location.value.trim(),
+                ioType: form.ioType.value,
+                signalType: form.signalType.value.trim(),
+                engUnits: form.engUnits.value.trim(),
+                lrv: form.lrv.value === '' ? null : parseFloat(form.lrv.value),
+                urv: form.urv.value === '' ? null : parseFloat(form.urv.value),
+                alarmLL: form.alarmLL.value === '' ? null : parseFloat(form.alarmLL.value),
+                alarmL: form.alarmL.value === '' ? null : parseFloat(form.alarmL.value),
+                alarmH: form.alarmH.value === '' ? null : parseFloat(form.alarmH.value),
+                alarmHH: form.alarmHH.value === '' ? null : parseFloat(form.alarmHH.value),
+                systemController: form.systemController.value.trim(),
+                ioAddress: form.ioAddress.value.trim(),
+                remarks: form.remarks.value.trim(),
+            };
+
+            if (!newPoint.tagNo) {
+                showMessage("Tag No. is required.", "error");
+                return;
+            }
+            
+            // Optimistically update UI, then save
+            ioList.push(newPoint);
+            renderTable();
+            saveIoListToFirestore(); // Save the entire list
+            form.reset();
+            showMessage("IO Point added successfully.", "success");
+        }
+
+        function removeIoPoint(id) {
+             showModal("Are you sure you want to remove this IO point?", () => {
+                if (!currentUserId || !ioListDocRef) {
+                    showMessage("Not authenticated. Cannot remove IO point.", "error");
+                    return;
+                }
+                ioList = ioList.filter(point => point.id !== id);
+                renderTable();
+                saveIoListToFirestore(); // Save the entire list after removal
+                showMessage("IO Point removed.", "info");
+            });
+        }
+        
+        function clearForm() {
+            form.reset();
+            showMessage("Form cleared.", "info");
+        }
+
+        function renderTable() {
+            tableBody.innerHTML = ''; // Clear existing rows
+            if (ioList.length === 0) {
+                noDataMessage.style.display = 'block';
+                tableBody.innerHTML = `<tr><td colspan="19" class="text-center py-4 text-gray-500">No IO points added yet.</td></tr>`;
+                return;
+            }
+            noDataMessage.style.display = 'none';
+
+            ioList.forEach((point, index) => {
+                const row = tableBody.insertRow();
+                row.innerHTML = `
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${index + 1}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${point.tagNo || ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${point.serviceDescription || ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${point.pidNo || ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${point.deviceType || ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${point.location || ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${point.ioType || ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${point.signalType || ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${point.engUnits || ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700 text-right">${point.lrv !== null ? point.lrv : ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700 text-right">${point.urv !== null ? point.urv : ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700 text-right">${point.alarmLL !== null ? point.alarmLL : ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700 text-right">${point.alarmL !== null ? point.alarmL : ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700 text-right">${point.alarmH !== null ? point.alarmH : ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700 text-right">${point.alarmHH !== null ? point.alarmHH : ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${point.systemController || ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${point.ioAddress || ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${point.remarks || ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">
+                        <button class="text-red-500 hover:text-red-700 font-medium remove-btn" data-id="${point.id}">Remove</button>
+                    </td>
+                `;
+            });
+
+            // Add event listeners to new remove buttons
+            document.querySelectorAll('.remove-btn').forEach(button => {
+                button.addEventListener('click', (e) => removeIoPoint(e.target.dataset.id));
+            });
+        }
+
+        // --- Firestore Data Handling ---
+        async function saveIoListToFirestore() {
+            if (!currentUserId || !ioListDocRef) {
+                showMessage("Not authenticated. Cannot save list.", "error");
+                console.error("Save aborted: User not authenticated or doc ref not set.");
+                return;
+            }
+            try {
+                // We store the entire ioList array in a single document.
+                // Firestore has a 1MB limit per document, which should be sufficient for many IO points.
+                // For very large lists, a subcollection approach might be better.
+                await setDoc(ioListDocRef, { 
+                    points: ioList, 
+                    lastUpdated: serverTimestamp() 
+                });
+                showMessage("IO List saved to cloud successfully!", "success");
+            } catch (error) {
+                console.error("Error saving IO list to Firestore:", error);
+                showMessage(`Error saving list: ${error.message}`, "error");
+            }
+        }
+
+        function loadIoListFromFirestore() {
+            if (!currentUserId || !ioListDocRef) {
+                console.log("Load aborted: User not authenticated or doc ref not set.");
+                renderTable(); // Render empty table if no user
+                return;
+            }
+
+            // Detach any existing listener before attaching a new one
+            if (unsubscribeSnapshot) {
+                unsubscribeSnapshot();
+            }
+            
+            authStatus.textContent = "Loading saved list...";
+            authStatus.className = "mt-1 text-yellow-700";
+
+            unsubscribeSnapshot = onSnapshot(ioListDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    ioList = data.points || []; // Ensure points array exists
+                    renderTable();
+                    showMessage("IO List loaded from cloud.", "info");
+                    authStatus.textContent = `Authenticated. List loaded. (${ioList.length} items)`;
+                    authStatus.className = "mt-1 text-green-700";
+                } else {
+                    console.log("No such document! Creating a new list for this user.");
+                    ioList = []; // Start with an empty list if no document exists
+                    renderTable();
+                    // Optionally save an empty list to create the document
+                    // saveIoListToFirestore(); 
+                    authStatus.textContent = `Authenticated. No saved list found.`;
+                    authStatus.className = "mt-1 text-blue-700";
+                }
+            }, (error) => {
+                console.error("Error fetching IO list from Firestore:", error);
+                showMessage(`Error loading list: ${error.message}`, "error");
+                authStatus.textContent = `Error loading list: ${error.message}`;
+                authStatus.className = "mt-1 text-red-700";
+                ioList = []; // Clear local list on error
+                renderTable();
+            });
+        }
+
+
+        // --- CSV Export ---
+        function exportToCsv() {
+            if (ioList.length === 0) {
+                showMessage("No data to export.", "info");
+                return;
+            }
+
+            const headers = [
+                "Tag No.", "Service Description", "P&ID No.", "Device Type", "Location", 
+                "I/O Type", "Signal Type / Range", "Eng. Units", "LRV", "URV", 
+                "Alarm LL", "Alarm L", "Alarm H", "Alarm HH", 
+                "System / Controller", "I/O Address / Channel", "Remarks"
+            ];
+            
+            const rows = ioList.map(point => [
+                point.tagNo, point.serviceDescription, point.pidNo, point.deviceType, point.location,
+                point.ioType, point.signalType, point.engUnits, point.lrv, point.urv,
+                point.alarmLL, point.alarmL, point.alarmH, point.alarmHH,
+                point.systemController, point.ioAddress, point.remarks
+            ].map(field => `"${String(field === null || field === undefined ? '' : field).replace(/"/g, '""')}"`) // Handle null/undefined and escape quotes
+            .join(','));
+
+            const csvContent = "data:text/csv;charset=utf-8," + headers.join(',') + "\n" + rows.join("\n");
+            
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "io_list.csv");
+            document.body.appendChild(link); // Required for Firefox
+            link.click();
+            document.body.removeChild(link);
+            showMessage("IO List exported to CSV.", "success");
+        }
+
+        // --- Event Listeners ---
+        addIoPointBtn.addEventListener('click', addIoPoint);
+        clearFormBtn.addEventListener('click', clearForm);
+        exportCsvBtn.addEventListener('click', exportToCsv);
+        saveListBtn.addEventListener('click', () => {
+            showModal("Are you sure you want to save the current list to the cloud? This will overwrite any previously saved version.", () => {
+                 saveIoListToFirestore();
+            });
+        });
+        
+        // Initial render (will be empty until data is loaded or added)
+        renderTable();
+
+    </script>
+</body>
+</html>
