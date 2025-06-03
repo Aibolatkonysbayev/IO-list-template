@@ -3,402 +3,478 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced People - Interactive Datasheet Generator</title>
+    <title>I&C IO List Generator (Local Storage)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f3f4f6;
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
         }
-        .main-content {
-            flex-grow: 1;
+        .modal {
+            display: none; 
+            position: fixed; 
+            z-index: 1000; 
+            left: 0;
+            top: 0;
+            width: 100%; 
+            height: 100%; 
+            overflow: auto; 
+            background-color: rgba(0,0,0,0.4); 
         }
-        footer {
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto; 
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%; 
+            max-width: 500px;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .table-container::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .table-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .table-container::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        .table-container::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        thead th {
+            position: sticky;
+            top: 0;
             background-color: #e5e7eb;
+            z-index: 10;
         }
-        /* Style for selected button */
-        .instrument-button.selected {
-            background-color: #1d4ed8;
-            color: white;
-            font-weight: 600;
-        }
-        /* Form input styling */
-        label {
-            display: block;
-            margin-bottom: 0.25rem;
-            font-weight: 500;
-            color: #374151;
-        }
-        input[type="text"], input[type="number"], select {
-            width: 100%;
-            padding: 0.5rem;
-            border: 1px solid #d1d5db;
-            border-radius: 0.375rem; /* rounded-md */
-            margin-bottom: 0.75rem;
-            box-shadow: inset 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-        }
-        /* Datasheet Output Styling */
-        #datasheetOutput {
-            border: 1px solid #9ca3af; /* Medium gray border */
-            padding: 1rem;
-            margin-top: 1.5rem;
-            background-color: white;
-        }
-        #datasheetOutput table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 1rem;
-            font-size: 0.875rem; /* text-sm */
-        }
-        #datasheetOutput th, #datasheetOutput td {
-            border: 1px solid #d1d5db; /* Light gray border */
-            padding: 0.3rem 0.5rem;
-            text-align: left;
-            vertical-align: top;
-        }
-        #datasheetOutput th {
+        tbody tr:hover {
             background-color: #f9fafb;
-            font-weight: 600;
-        }
-        #datasheetOutput .title-block table {
-            margin-top: 0;
-        }
-        #datasheetOutput .title-block td {
-            height: 30px; /* Fixed height for title block cells */
-        }
-        #datasheetOutput .logo-cell {
-            text-align: center;
-            vertical-align: middle;
-        }
-        #datasheetOutput .param-name {
-           font-weight: 500;
-           width: 40%;
-        }
-        #datasheetOutput .param-value {
-           font-family: monospace; /* Use monospace for entered values */
-        }
-        /* Hide output initially */
-        #datasheetOutputContainer {
-            display: none;
         }
     </style>
 </head>
-<body class="p-4 md:p-8">
+<body class="bg-gray-100 text-gray-800 p-4 md:p-8">
 
-    <div class="main-content max-w-5xl mx-auto bg-white p-6 rounded-lg shadow-lg mb-8">
-        <div class="flex flex-col sm:flex-row items-center justify-between mb-6 border-b pb-4 border-gray-200">
-            <h1 class="text-xl md:text-2xl font-bold text-center sm:text-left text-gray-800 mb-2 sm:mb-0">
-                Advanced People <br class="sm:hidden"> Interactive Datasheet Generator
-            </h1>
-            <img id="outputLogo" src="https://placehold.co/150x50/003366/FFFFFF?text=Advanced+People"
-                 alt="Advanced People Logo"
-                 class="h-10 md:h-12 object-contain rounded"
-                 onerror="this.onerror=null; this.src='https://placehold.co/150x50/CCCCCC/000000?text=Logo+Error';">
+    <div class="container mx-auto max-w-7xl">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl md:text-4xl font-bold text-blue-600">I&C IO List Generator</h1>
+            <p class="text-gray-600 mt-2">Create, manage, and export your IO Lists. Data is saved in your browser.</p>
+        </header>
+
+        <div class="mb-4 p-3 bg-blue-100 border border-blue-300 rounded-lg text-sm text-blue-700">
+            <p><strong>Storage Mode:</strong> <span id="storageModeDisplay">Browser Local Storage</span></p>
+            <p id="dataStatus" class="mt-1">Loading list from browser storage...</p>
+        </div>
+        
+        <div id="messageArea" class="mb-4 p-3 rounded-lg text-sm hidden"></div>
+
+        <div class="bg-white p-6 rounded-xl shadow-lg mb-8">
+            <h2 class="text-2xl font-semibold mb-6 text-gray-700 border-b pb-3">Add New IO Point</h2>
+            <form id="ioPointForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div>
+                    <label for="tagNo" class="block text-sm font-medium text-gray-700 mb-1">Tag No.:</label>
+                    <input type="text" id="tagNo" name="tagNo" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., TE-1001A">
+                </div>
+                <div>
+                    <label for="serviceDescription" class="block text-sm font-medium text-gray-700 mb-1">Service Description:</label>
+                    <input type="text" id="serviceDescription" name="serviceDescription" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., REACTOR TEMP.">
+                </div>
+                <div>
+                    <label for="pidNo" class="block text-sm font-medium text-gray-700 mb-1">P&ID No.:</label>
+                    <input type="text" id="pidNo" name="pidNo" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., P-101">
+                </div>
+                <div>
+                    <label for="deviceType" class="block text-sm font-medium text-gray-700 mb-1">Device Type:</label>
+                    <input type="text" id="deviceType" name="deviceType" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., Thermocouple">
+                </div>
+                <div>
+                    <label for="location" class="block text-sm font-medium text-gray-700 mb-1">Location:</label>
+                    <input type="text" id="location" name="location" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., Field, Panel JB-01">
+                </div>
+                <div>
+                    <label for="ioType" class="block text-sm font-medium text-gray-700 mb-1">I/O Type:</label>
+                    <select id="ioType" name="ioType" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                        <option value="AI">AI (Analog Input)</option>
+                        <option value="AO">AO (Analog Output)</option>
+                        <option value="DI">DI (Digital Input)</option>
+                        <option value="DO">DO (Digital Output)</option>
+                        <option value="PI">PI (Pulse Input)</option>
+                        <option value="PO">PO (Pulse Output)</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="signalType" class="block text-sm font-medium text-gray-700 mb-1">Signal Type / Range:</label>
+                    <input type="text" id="signalType" name="signalType" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 4-20mA, 24VDC">
+                </div>
+                <div>
+                    <label for="engUnits" class="block text-sm font-medium text-gray-700 mb-1">Eng. Units:</label>
+                    <input type="text" id="engUnits" name="engUnits" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., DegC, barg">
+                </div>
+                <div>
+                    <label for="lrv" class="block text-sm font-medium text-gray-700 mb-1">LRV:</label>
+                    <input type="number" step="any" id="lrv" name="lrv" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 0">
+                </div>
+                <div>
+                    <label for="urv" class="block text-sm font-medium text-gray-700 mb-1">URV:</label>
+                    <input type="number" step="any" id="urv" name="urv" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 100">
+                </div>
+                <div>
+                    <label for="alarmLL" class="block text-sm font-medium text-gray-700 mb-1">Alarm LL:</label>
+                    <input type="number" step="any" id="alarmLL" name="alarmLL" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 10.0">
+                </div>
+                <div>
+                    <label for="alarmL" class="block text-sm font-medium text-gray-700 mb-1">Alarm L:</label>
+                    <input type="number" step="any" id="alarmL" name="alarmL" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 20.0">
+                </div>
+                 <div>
+                    <label for="alarmH" class="block text-sm font-medium text-gray-700 mb-1">Alarm H:</label>
+                    <input type="number" step="any" id="alarmH" name="alarmH" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 80.0">
+                </div>
+                <div>
+                    <label for="alarmHH" class="block text-sm font-medium text-gray-700 mb-1">Alarm HH:</label>
+                    <input type="number" step="any" id="alarmHH" name="alarmHH" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 90.0">
+                </div>
+                <div>
+                    <label for="systemController" class="block text-sm font-medium text-gray-700 mb-1">System / Controller:</label>
+                    <input type="text" id="systemController" name="systemController" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., PLC-01">
+                </div>
+                <div>
+                    <label for="ioAddress" class="block text-sm font-medium text-gray-700 mb-1">I/O Address / Channel:</label>
+                    <input type="text" id="ioAddress" name="ioAddress" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., AI-CH01">
+                </div>
+                <div class="md:col-span-2 lg:col-span-3">
+                    <label for="remarks" class="block text-sm font-medium text-gray-700 mb-1">Remarks:</label>
+                    <textarea id="remarks" name="remarks" rows="2" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="Any additional notes..."></textarea>
+                </div>
+                <div class="md:col-span-2 lg:col-span-3 flex justify-end space-x-3 mt-4">
+                    <button type="button" id="addIoPointBtn" class="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition duration-150">
+                        Add IO Point
+                    </button>
+                     <button type="button" id="clearFormBtn" class="px-6 py-2 bg-gray-500 text-white font-semibold rounded-lg shadow-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50 transition duration-150">
+                        Clear Form
+                    </button>
+                </div>
+            </form>
         </div>
 
-        <div class="mb-6">
-            <h2 class="text-lg font-semibold text-gray-700 mb-3">1. Select Instrument Type:</h2>
-            <div id="instrumentSelector" class="flex flex-wrap gap-2">
-                <button data-instrument="pressure" class="instrument-button bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded transition duration-150 ease-in-out">Pressure Tx</button>
-                <button data-instrument="controlvalve" class="instrument-button bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded transition duration-150 ease-in-out">Control Valve</button>
-                <button data-instrument="level" class="instrument-button bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded transition duration-150 ease-in-out">Level Tx</button>
-                <button data-instrument="flow" class="instrument-button bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded transition duration-150 ease-in-out">Flow Tx</button>
-                <button data-instrument="temperature" class="instrument-button bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded transition duration-150 ease-in-out">Temperature Tx</button>
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+            <div class="flex flex-col sm:flex-row justify-between items-center mb-6 pb-3 border-b">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-3 sm:mb-0">Current IO List</h2>
+                <div class="flex space-x-3">
+                     <button id="saveListBtn" class="px-5 py-2 bg-green-500 text-white font-semibold rounded-lg shadow-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-50 transition duration-150">
+                        Save List to Browser
+                    </button>
+                    <button id="exportCsvBtn" class="px-5 py-2 bg-purple-500 text-white font-semibold rounded-lg shadow-md hover:bg-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 transition duration-150">
+                        Export to CSV
+                    </button>
+                </div>
+            </div>
+            <div class="table-container overflow-x-auto max-h-[500px]">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-200">
+                        <tr>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">#</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Tag No.</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Service Desc.</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">P&ID</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Device Type</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Location</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">I/O Type</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Signal</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Units</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">LRV</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">URV</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">LL</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">L</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">H</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">HH</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">System</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Address</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Remarks</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ioListTableBody" class="bg-white divide-y divide-gray-200">
+                        </tbody>
+                </table>
+            </div>
+             <p id="noDataMessage" class="text-center text-gray-500 py-8">No IO points added yet.</p>
+        </div>
+    </div>
+
+    <div id="customModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeModalJs()">&times;</span>
+            <p id="modalMessageText" class="text-gray-700 text-lg"></p>
+            <div class="mt-6 flex justify-end space-x-3">
+                <button id="modalConfirmBtn" class="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600">Confirm</button>
+                <button id="modalCancelBtn" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400" onclick="closeModalJs()">Cancel</button>
             </div>
         </div>
+    </div>
+    
+    <script type="module">
+        // --- Constants ---
+        const LOCAL_STORAGE_KEY = 'ioListGeneratorData';
 
-        <div id="formContainer" class="mt-6">
-             <h2 class="text-lg font-semibold text-gray-700 mb-3">2. Enter Datasheet Information:</h2>
-             <div id="dataInputForm" class="p-4 border border-gray-200 rounded-lg bg-gray-50 min-h-[200px]">
-                 <p class="text-gray-500">Select an instrument type above to load the form.</p>
-             </div>
-        </div>
+        // --- Global Variables ---
+        let ioList = []; // Local array to store IO points
 
-        <div id="generateButtonContainer" class="mt-6 text-center" style="display: none;">
-             <button id="generateButton" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded transition duration-150 ease-in-out">
-                 Generate Datasheet Preview
-             </button>
-         </div>
+        // --- UI Elements ---
+        const form = document.getElementById('ioPointForm');
+        const addIoPointBtn = document.getElementById('addIoPointBtn');
+        const clearFormBtn = document.getElementById('clearFormBtn');
+        const tableBody = document.getElementById('ioListTableBody');
+        const exportCsvBtn = document.getElementById('exportCsvBtn');
+        const saveListBtn = document.getElementById('saveListBtn');
+        const noDataMessage = document.getElementById('noDataMessage');
+        const messageArea = document.getElementById('messageArea');
+        const dataStatus = document.getElementById('dataStatus');
+        
+        // Modal elements
+        const customModal = document.getElementById('customModal');
+        const modalMessageText = document.getElementById('modalMessageText');
+        const modalConfirmBtn = document.getElementById('modalConfirmBtn');
+        let confirmAction = null;
 
-        <div id="datasheetOutputContainer" class="mt-8">
-             <h2 class="text-lg font-semibold text-gray-700 mb-3">3. Generated Datasheet Preview:</h2>
-             <div id="datasheetOutput">
-                 </div>
-        </div>
 
-    </div> <footer class="w-full mt-auto p-4 text-center text-sm text-gray-600">
-        &copy; <span id="currentYear"></span> Advanced People. All rights reserved. Educational Tool.
-    </footer>
-
-    <script>
-        // --- DOM Elements ---
-        const instrumentSelector = document.getElementById('instrumentSelector');
-        const formContainer = document.getElementById('formContainer');
-        const dataInputForm = document.getElementById('dataInputForm');
-        const generateButtonContainer = document.getElementById('generateButtonContainer');
-        const generateButton = document.getElementById('generateButton');
-        const datasheetOutputContainer = document.getElementById('datasheetOutputContainer');
-        const datasheetOutput = document.getElementById('datasheetOutput');
-        const currentYearSpan = document.getElementById('currentYear');
-        const outputLogo = document.getElementById('outputLogo'); // Logo in header
-
-        // --- Data Structures for Form Fields ---
-        // Defines the fields for each instrument type form
-        const instrumentFields = {
-            general: [
-                { id: 'tagNo', label: 'Tag No.', type: 'text', placeholder: 'e.g., PT-101' },
-                { id: 'serviceDesc', label: 'Service Description', type: 'text', placeholder: 'e.g., Crude Oil Pump Discharge Pressure' },
-                { id: 'pidNo', label: 'P&ID Drawing No.', type: 'text', placeholder: 'e.g., AP-PID-00-1001' },
-                { id: 'lineVesselNo', label: 'Line No. / Vessel No.', type: 'text', placeholder: 'e.g., 6"-CO-1023 / V-101' }
-            ],
-            pressure: [
-                { id: 'measType', label: 'Measurement Type', type: 'select', options: ['Gauge', 'Absolute', 'Differential'] },
-                { id: 'calRange', label: 'Calibrated Range', type: 'text', placeholder: 'e.g., 0 - 10 barg' },
-                { id: 'outputSignal', label: 'Output Signal', type: 'select', options: ['4-20mA HART', 'Foundation Fieldbus', 'Profibus PA', 'Wireless HART'] },
-                { id: 'procConn', label: 'Process Connection', type: 'text', placeholder: 'e.g., 1/2" NPTM SS316' },
-                { id: 'wettedParts', label: 'Wetted Parts Material', type: 'text', placeholder: 'e.g., SS316L' },
-                { id: 'accuracy', label: 'Accuracy (% Span)', type: 'text', placeholder: 'e.g., +/- 0.075' },
-                { id: 'powerSupply', label: 'Power Supply', type: 'text', placeholder: 'e.g., 24 VDC Loop Powered' },
-                { id: 'hazCert', label: 'Hazardous Area Cert.', type: 'text', placeholder: 'e.g., ATEX Ex ia' },
-                { id: 'display', label: 'Integral Display', type: 'select', options: ['Yes', 'No'] },
-                { id: 'accessories', label: 'Accessories', type: 'text', placeholder: 'e.g., 3-valve Manifold' }
-            ],
-            controlvalve: [
-                 { id: 'valveType', label: 'Valve Type', type: 'select', options: ['Globe', 'Ball (Segmented)', 'Ball (Full)', 'Butterfly', 'Plug'] },
-                 { id: 'failAction', label: 'Failure Action', type: 'select', options: ['Fail Open (FO)', 'Fail Close (FC)', 'Fail Last (FL)'] },
-                 { id: 'bodyMat', label: 'Body Material', type: 'text', placeholder: 'e.g., A216 WCB (CS)' },
-                 { id: 'trimMat', label: 'Trim Material', type: 'text', placeholder: 'e.g., SS316' },
-                 { id: 'endConn', label: 'End Connections', type: 'text', placeholder: 'e.g., 2" 300# RF' },
-                 { id: 'flowChar', label: 'Flow Characteristic', type: 'select', options: ['Linear', 'Equal Percentage (%EQ)', 'Quick Opening'] },
-                 { id: 'cv', label: 'Calculated Cv', type: 'text', placeholder: 'e.g., 45.5' },
-                 { id: 'actuatorType', label: 'Actuator Type', type: 'select', options: ['Pneumatic Diaphragm', 'Pneumatic Piston', 'Electric', 'Hydraulic'] },
-                 { id: 'actuatorAction', label: 'Actuator Action', type: 'select', options: ['Direct (Air-to-Close)', 'Reverse (Air-to-Open)'] },
-                 { id: 'positionerReq', label: 'Positioner Required?', type: 'select', options: ['Yes', 'No'] },
-                 { id: 'positionerType', label: 'Positioner Type', type: 'select', options: ['Digital HART', 'Pneumatic', 'Electro-Pneumatic (I/P)', 'FF', 'Profibus'] },
-                 { id: 'posInputOutput', label: 'Positioner Input/Output', type: 'text', placeholder: 'e.g., 4-20mA / 3-15 psi' },
-                 { id: 'valveAcc', label: 'Accessories', type: 'text', placeholder: 'e.g., SOV, Limit Switches, Airset' },
-                 { id: 'maxShutoff', label: 'Max Shutoff Pressure', type: 'text', placeholder: 'e.g., 50 barg' }
-            ],
-            level: [
-                 { id: 'measPrinciple', label: 'Measurement Principle', type: 'select', options: ['Differential Pressure (DP)', 'Guided Wave Radar (GWR)', 'Non-Contact Radar', 'Ultrasonic', 'Capacitance', 'Displacer', 'Magnetic', 'Other'] },
-                 { id: 'measRange', label: 'Measurement Range / Span', type: 'text', placeholder: 'e.g., 0 - 3000 mm' },
-                 { id: 'outputSignal', label: 'Output Signal', type: 'select', options: ['4-20mA HART', 'Foundation Fieldbus', 'Profibus PA'] },
-                 { id: 'procConn', label: 'Process Connection(s)', type: 'text', placeholder: 'e.g., 1-1/2" 150# RF SS316' },
-                 { id: 'wettedParts', label: 'Wetted Parts Material', type: 'text', placeholder: 'e.g., SS316L / PTFE' },
-                 { id: 'accuracy', label: 'Accuracy', type: 'text', placeholder: 'e.g., +/- 5 mm' },
-                 { id: 'powerSupply', label: 'Power Supply', type: 'text', placeholder: 'e.g., 24 VDC Loop Powered' },
-                 { id: 'hazCert', label: 'Hazardous Area Cert.', type: 'text', placeholder: 'e.g., ATEX Ex ia' },
-                 { id: 'mounting', label: 'Mounting', type: 'text', placeholder: 'e.g., Top / Side / Bridle' },
-                 { id: 'display', label: 'Integral Display', type: 'select', options: ['Yes', 'No'] },
-            ],
-             flow: [
-                 { id: 'measPrinciple', label: 'Measurement Principle', type: 'select', options: ['DP (Orifice)', 'DP (Venturi)', 'Magnetic', 'Coriolis', 'Ultrasonic', 'Turbine', 'Vortex', 'Thermal Mass', 'PD'] },
-                 { id: 'fluidType', label: 'Fluid Type', type: 'text', placeholder: 'e.g., Natural Gas' },
-                 { id: 'flowRange', label: 'Operating Flow Range', type: 'text', placeholder: 'e.g., 0-100 m3/hr' },
-                 { id: 'opTempPress', label: 'Operating Temp / Pressure', type: 'text', placeholder: 'e.g., 150 C / 10 barg' },
-                 { id: 'outputSignal', label: 'Output Signal', type: 'select', options: ['4-20mA HART', 'Pulse Output', 'FF', 'Profibus PA', 'Modbus'] },
-                 { id: 'lineSize', label: 'Line Size', type: 'text', placeholder: 'e.g., 4"' },
-                 { id: 'endConn', label: 'End Connections', type: 'text', placeholder: 'e.g., 300# RF Flanged' },
-                 { id: 'wettedParts', label: 'Wetted Parts Material', type: 'text', placeholder: 'e.g., SS316L' },
-                 { id: 'accuracy', label: 'Accuracy', type: 'text', placeholder: 'e.g., +/- 0.5% of Rate' },
-                 { id: 'powerSupply', label: 'Power Supply', type: 'text', placeholder: 'e.g., 24 VDC' },
-                 { id: 'hazCert', label: 'Hazardous Area Cert.', type: 'text', placeholder: 'e.g., ATEX Ex d' },
-                 { id: 'displayTotalizer', label: 'Integral Display / Totalizer', type: 'select', options: ['Yes', 'No', 'Display Only', 'Totalizer Only'] },
-                 { id: 'primaryElement', label: 'Primary Element Details (if DP)', type: 'text', placeholder: 'e.g., Orifice Plate SS316' }
-             ],
-            temperature: [
-                 { id: 'sensorType', label: 'Sensor Input Type', type: 'select', options: ['RTD Pt100', 'RTD Pt1000', 'TC Type K', 'TC Type J', 'TC Type T', 'TC Type E', 'Other'] },
-                 { id: 'numInputs', label: 'Number of Inputs', type: 'select', options: ['Single', 'Dual'] },
-                 { id: 'measRange', label: 'Measurement Range', type: 'text', placeholder: 'e.g., 0 - 250 C' },
-                 { id: 'outputSignal', label: 'Output Signal', type: 'select', options: ['4-20mA HART', 'Foundation Fieldbus', 'Profibus PA'] },
-                 { id: 'txType', label: 'Transmitter Type', type: 'select', options: ['Head-mounted', 'Field-mounted', 'Rail-mounted'] },
-                 { id: 'accuracy', label: 'Accuracy (Tx + Sensor)', type: 'text', placeholder: 'e.g., +/- 0.5 C' },
-                 { id: 'powerSupply', label: 'Power Supply', type: 'text', placeholder: 'e.g., 24 VDC Loop Powered' },
-                 { id: 'hazCert', label: 'Hazardous Area Cert.', type: 'text', placeholder: 'e.g., ATEX Ex ia' },
-                 { id: 'display', label: 'Integral Display', type: 'select', options: ['Yes', 'No'] },
-                 // Thermowell section (simplified)
-                 { id: 'twMaterial', label: 'Thermowell Material', type: 'text', placeholder: 'e.g., SS316' },
-                 { id: 'twProcConn', label: 'Thermowell Process Conn.', type: 'text', placeholder: 'e.g., 1" 300# RF' },
-                 { id: 'twInsertion', label: 'Thermowell Insertion (\'U\')', type: 'text', placeholder: 'e.g., 150 mm' },
-                 { id: 'twWake', label: 'Wake Freq. Calc. Required?', type: 'select', options: ['Yes', 'No'] }
-             ],
-            titleBlock: [
-                 { id: 'designedBy', label: 'Designed By', type: 'text', placeholder: 'Your Name / Initials' },
-                 { id: 'approvedBy', label: 'Approved By', type: 'text', placeholder: 'Approver Name / Initials' },
-                 { id: 'revisionStatus', label: 'Revision Status', type: 'select', options: ['Issued for Review', 'Issued for Approval', 'Issued for Construction', 'Issued for Procurement', 'As Built'] },
-                 { id: 'revisionNo', label: 'Revision No.', type: 'text', placeholder: 'e.g., 0, 1, A, B' },
-                 { id: 'date', label: 'Date', type: 'date' } // Use date input type
-            ]
-        };
-
-        // --- State Variable ---
-        let currentInstrumentType = null;
-        let currentFormData = {};
-
-        // --- Functions ---
-
-        // Generate HTML for a single form field
-        function createFieldHtml(field) {
-            let fieldHtml = `<div class="mb-4">`;
-            fieldHtml += `<label for="${field.id}" class="text-sm">${field.label}:</label>`;
-            if (field.type === 'select') {
-                fieldHtml += `<select id="${field.id}" name="${field.id}">`;
-                field.options.forEach(opt => {
-                    fieldHtml += `<option value="${opt}">${opt}</option>`;
-                });
-                fieldHtml += `</select>`;
-            } else if (field.type === 'date') {
-                 fieldHtml += `<input type="date" id="${field.id}" name="${field.id}">`;
-            }
-            else { // Default to text input
-                fieldHtml += `<input type="${field.type}" id="${field.id}" name="${field.id}" placeholder="${field.placeholder || ''}">`;
-            }
-            fieldHtml += `</div>`;
-            return fieldHtml;
+        // --- Modal Functions ---
+        window.closeModalJs = function() {
+            if(customModal) customModal.style.display = 'none';
+            confirmAction = null;
         }
 
-        // Generate the complete form for the selected instrument
-        function generateForm(instrumentType) {
-            currentInstrumentType = instrumentType;
-            dataInputForm.innerHTML = ''; // Clear previous form
-            let formHtml = '<form id="instrumentDataEntryForm">';
-
-            // Add General Fields
-            formHtml += '<h4 class="text-md font-semibold mb-2 border-b pb-1 text-gray-600">General Information</h4>';
-            instrumentFields.general.forEach(field => formHtml += createFieldHtml(field));
-
-            // Add Instrument Specific Fields
-            formHtml += `<h4 class="text-md font-semibold mt-4 mb-2 border-b pb-1 text-gray-600">${instrumentType.charAt(0).toUpperCase() + instrumentType.slice(1)} Specifics</h4>`;
-            if (instrumentFields[instrumentType]) {
-                instrumentFields[instrumentType].forEach(field => formHtml += createFieldHtml(field));
-            }
-
-             // Add Title Block Fields
-            formHtml += '<h4 class="text-md font-semibold mt-4 mb-2 border-b pb-1 text-gray-600">Revision & Approval</h4>';
-            instrumentFields.titleBlock.forEach(field => formHtml += createFieldHtml(field));
-
-
-            formHtml += '</form>';
-            dataInputForm.innerHTML = formHtml;
-            generateButtonContainer.style.display = 'block'; // Show generate button
-            datasheetOutputContainer.style.display = 'none'; // Hide output area when form changes
+        function showModal(message, onConfirm, showCancel = true) {
+            if(modalMessageText) modalMessageText.textContent = message;
+            confirmAction = onConfirm;
+            if(modalConfirmBtn) modalConfirmBtn.style.display = 'inline-block';
+            const modalCancelBtnEl = document.getElementById('modalCancelBtn');
+            if(modalCancelBtnEl) modalCancelBtnEl.style.display = showCancel ? 'inline-block' : 'none';
+            if(customModal) customModal.style.display = 'block';
         }
 
-        // Collect data from the current form
-        function collectFormData() {
-            currentFormData = {};
-            const form = document.getElementById('instrumentDataEntryForm');
+        if(modalConfirmBtn) {
+            modalConfirmBtn.addEventListener('click', () => {
+                if (confirmAction) {
+                    confirmAction();
+                }
+                window.closeModalJs();
+            });
+        }
+        
+        // --- Utility to show messages ---
+        function showMessage(message, type = 'info') {
+            if (!messageArea) return;
+            messageArea.textContent = message;
+            messageArea.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'bg-red-100', 'text-red-700', 'bg-blue-100', 'text-blue-700');
+            if (type === 'success') {
+                messageArea.classList.add('bg-green-100', 'text-green-700');
+            } else if (type === 'error') {
+                messageArea.classList.add('bg-red-100', 'text-red-700');
+            } else { // info
+                messageArea.classList.add('bg-blue-100', 'text-blue-700');
+            }
+            messageArea.classList.remove('hidden');
+            setTimeout(() => {
+                messageArea.classList.add('hidden');
+            }, 3000); // Hide after 3 seconds
+        }
+
+        // --- CRUD Operations & Table Rendering ---
+        function addIoPoint(event) {
+            event.preventDefault();
             if (!form) return;
 
-            const allFields = [
-                ...instrumentFields.general,
-                ...(instrumentFields[currentInstrumentType] || []),
-                ...instrumentFields.titleBlock
-            ];
+            const newPoint = {
+                id: crypto.randomUUID(), // Unique ID for each point
+                tagNo: form.tagNo.value.trim(),
+                serviceDescription: form.serviceDescription.value.trim(),
+                pidNo: form.pidNo.value.trim(),
+                deviceType: form.deviceType.value.trim(),
+                location: form.location.value.trim(),
+                ioType: form.ioType.value,
+                signalType: form.signalType.value.trim(),
+                engUnits: form.engUnits.value.trim(),
+                lrv: form.lrv.value === '' ? null : parseFloat(form.lrv.value),
+                urv: form.urv.value === '' ? null : parseFloat(form.urv.value),
+                alarmLL: form.alarmLL.value === '' ? null : parseFloat(form.alarmLL.value),
+                alarmL: form.alarmL.value === '' ? null : parseFloat(form.alarmL.value),
+                alarmH: form.alarmH.value === '' ? null : parseFloat(form.alarmH.value),
+                alarmHH: form.alarmHH.value === '' ? null : parseFloat(form.alarmHH.value),
+                systemController: form.systemController.value.trim(),
+                ioAddress: form.ioAddress.value.trim(),
+                remarks: form.remarks.value.trim(),
+            };
 
-            allFields.forEach(field => {
-                const inputElement = form.elements[field.id];
-                if (inputElement) {
-                    currentFormData[field.id] = {
-                        label: field.label, // Store label for datasheet generation
-                        value: inputElement.value || '-' // Use '-' for empty fields
-                    };
-                }
+            if (!newPoint.tagNo) {
+                showMessage("Tag No. is required.", "error");
+                return;
+            }
+            
+            ioList.push(newPoint);
+            renderTable();
+            saveIoListToLocalStorage(); // Save to local storage after adding
+            form.reset();
+            showMessage("IO Point added.", "success");
+        }
+
+        function removeIoPoint(id) {
+             showModal("Are you sure you want to remove this IO point?", () => {
+                ioList = ioList.filter(point => point.id !== id);
+                renderTable();
+                saveIoListToLocalStorage(); // Save to local storage after removal
+                showMessage("IO Point removed.", "info");
+            });
+        }
+        
+        function clearForm() {
+            if(form) form.reset();
+            showMessage("Form cleared.", "info");
+        }
+
+        function renderTable() {
+            if (!tableBody) return;
+            tableBody.innerHTML = ''; 
+            if (ioList.length === 0) {
+                if(noDataMessage) noDataMessage.style.display = 'block';
+                tableBody.innerHTML = `<tr><td colspan="19" class="text-center py-4 text-gray-500">No IO points added yet.</td></tr>`;
+                return;
+            }
+            if(noDataMessage) noDataMessage.style.display = 'none';
+
+            ioList.forEach((point, index) => {
+                const row = tableBody.insertRow();
+                row.innerHTML = `
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${index + 1}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${point.tagNo || ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${point.serviceDescription || ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${point.pidNo || ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${point.deviceType || ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${point.location || ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${point.ioType || ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${point.signalType || ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${point.engUnits || ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700 text-right">${point.lrv !== null ? point.lrv : ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700 text-right">${point.urv !== null ? point.urv : ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700 text-right">${point.alarmLL !== null ? point.alarmLL : ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700 text-right">${point.alarmL !== null ? point.alarmL : ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700 text-right">${point.alarmH !== null ? point.alarmH : ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700 text-right">${point.alarmHH !== null ? point.alarmHH : ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${point.systemController || ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${point.ioAddress || ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">${point.remarks || ''}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700">
+                        <button class="text-red-500 hover:text-red-700 font-medium remove-btn" data-id="${point.id}">Remove</button>
+                    </td>
+                `;
+            });
+
+            document.querySelectorAll('.remove-btn').forEach(button => {
+                button.addEventListener('click', (e) => removeIoPoint(e.target.dataset.id));
             });
         }
 
-        // Generate the HTML for the datasheet output
-        function generateDatasheetHTML() {
-            if (!currentInstrumentType || Object.keys(currentFormData).length === 0) {
-                datasheetOutput.innerHTML = '<p class="text-red-600">No data entered or instrument selected.</p>';
+        // --- LocalStorage Data Handling ---
+        function saveIoListToLocalStorage() {
+            try {
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(ioList));
+                showMessage("IO List saved to browser storage.", "success");
+                if(dataStatus) dataStatus.textContent = `List saved to browser. (${ioList.length} items)`;
+            } catch (error) {
+                console.error("Error saving IO list to localStorage:", error);
+                showMessage("Error saving list to browser. Storage might be full.", "error");
+                if(dataStatus) dataStatus.textContent = "Error saving list.";
+            }
+        }
+
+        function loadIoListFromLocalStorage() {
+            try {
+                const savedList = localStorage.getItem(LOCAL_STORAGE_KEY);
+                if (savedList) {
+                    ioList = JSON.parse(savedList);
+                    if(dataStatus) dataStatus.textContent = `List loaded from browser. (${ioList.length} items)`;
+                    showMessage("IO List loaded from browser storage.", "info");
+                } else {
+                    if(dataStatus) dataStatus.textContent = "No list found in browser storage. Add items to start.";
+                }
+            } catch (error) {
+                console.error("Error loading IO list from localStorage:", error);
+                ioList = []; // Reset to empty list on error
+                if(dataStatus) dataStatus.textContent = "Error loading list from browser storage.";
+                showMessage("Error loading list from browser. Starting with an empty list.", "error");
+            }
+            renderTable();
+        }
+
+        // --- CSV Export ---
+        function exportToCsv() {
+            if (ioList.length === 0) {
+                showMessage("No data to export.", "info");
                 return;
             }
 
-            // --- Build Title Block ---
-            let titleBlockHtml = `
-                <table class="title-block border border-black">
-                    <tr>
-                        <td rowspan="3" class="logo-cell border-r border-black w-1/4">
-                            <img src="${outputLogo.src}" alt="Logo" class="h-12 mx-auto">
-                        </td>
-                        <td colspan="3" class="text-center font-bold text-lg border-b border-black">INSTRUMENT DATASHEET</td>
-                    </tr>
-                    <tr>
-                        <td class="font-semibold border-r border-b border-black">Tag No:</td>
-                        <td colspan="2" class="font-bold text-lg border-b border-black">${currentFormData['tagNo']?.value || 'N/A'}</td>
-                    </tr>
-                    <tr>
-                        <td class="font-semibold border-r border-b border-black">Service:</td>
-                        <td colspan="2" class="border-b border-black">${currentFormData['serviceDesc']?.value || ''}</td>
-                    </tr>
-                    <tr>
-                        <td class="border-r border-b border-black">Designed: ${currentFormData['designedBy']?.value || ''}</td>
-                        <td class="border-r border-b border-black">Approved: ${currentFormData['approvedBy']?.value || ''}</td>
-                        <td class="border-r border-b border-black">Date: ${currentFormData['date']?.value || ''}</td>
-                        <td class="border-b border-black">Rev: ${currentFormData['revisionNo']?.value || ''}</td>
-                    </tr>
-                     <tr>
-                        <td colspan="4" class="text-center font-semibold">${currentFormData['revisionStatus']?.value || ''}</td>
-                    </tr>
-                </table>`;
-
-            // --- Build Parameter Table ---
-            let paramsHtml = '<h4 class="text-md font-semibold mt-4 mb-2">Parameters:</h4><table>';
-            const allFields = [
-                ...instrumentFields.general,
-                ...(instrumentFields[currentInstrumentType] || []),
-                 // Exclude title block fields from the main parameter list
+            const headers = [
+                "Tag No.", "Service Description", "P&ID No.", "Device Type", "Location", 
+                "I/O Type", "Signal Type / Range", "Eng. Units", "LRV", "URV", 
+                "Alarm LL", "Alarm L", "Alarm H", "Alarm HH", 
+                "System / Controller", "I/O Address / Channel", "Remarks"
             ];
+            
+            const rows = ioList.map(point => [
+                point.tagNo, point.serviceDescription, point.pidNo, point.deviceType, point.location,
+                point.ioType, point.signalType, point.engUnits, point.lrv, point.urv,
+                point.alarmLL, point.alarmL, point.alarmH, point.alarmHH,
+                point.systemController, point.ioAddress, point.remarks
+            ].map(field => `"${String(field === null || field === undefined ? '' : field).replace(/"/g, '""')}"`) 
+            .join(','));
 
-            allFields.forEach(field => {
-                // Check if the field exists in the collected data (it should)
-                 if (currentFormData[field.id]) {
-                     paramsHtml += `
-                        <tr>
-                            <td class="param-name">${field.label}</td>
-                            <td class="param-value">${currentFormData[field.id].value}</td>
-                        </tr>`;
-                 }
-            });
-            paramsHtml += '</table>';
-
-            // Combine and display
-            datasheetOutput.innerHTML = titleBlockHtml + paramsHtml;
-            datasheetOutputContainer.style.display = 'block'; // Show the output
+            const csvContent = "data:text/csv;charset=utf-8," + headers.join(',') + "\n" + rows.join("\n");
+            
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "io_list.csv");
+            document.body.appendChild(link); 
+            link.click();
+            document.body.removeChild(link);
+            showMessage("IO List exported to CSV.", "success");
         }
 
-
         // --- Event Listeners ---
-        instrumentSelector.addEventListener('click', (event) => {
-            if (event.target.classList.contains('instrument-button')) {
-                const selectedInstrument = event.target.dataset.instrument;
-                // Update button styles
-                document.querySelectorAll('.instrument-button').forEach(button => {
-                    button.classList.remove('selected');
+        if(addIoPointBtn) addIoPointBtn.addEventListener('click', addIoPoint);
+        if(clearFormBtn) clearFormBtn.addEventListener('click', clearForm);
+        if(exportCsvBtn) exportCsvBtn.addEventListener('click', exportToCsv);
+        if(saveListBtn) {
+            saveListBtn.addEventListener('click', () => {
+                showModal("Are you sure you want to save the current list to your browser's local storage? This will overwrite any previously saved version in this browser.", () => {
+                     saveIoListToLocalStorage();
                 });
-                event.target.classList.add('selected');
-                // Generate the form
-                generateForm(selectedInstrument);
-            }
-        });
-
-        generateButton.addEventListener('click', () => {
-            collectFormData();
-            generateDatasheetHTML();
-             // Scroll to the output section smoothly
-            datasheetOutputContainer.scrollIntoView({ behavior: 'smooth' });
-        });
-
-        // --- Initial Setup ---
+            });
+        }
+        
+        // --- Initial Load ---
+        // Load data from localStorage when the page loads
         document.addEventListener('DOMContentLoaded', () => {
-            currentYearSpan.textContent = new Date().getFullYear();
+            loadIoListFromLocalStorage();
         });
 
     </script>
-
 </body>
 </html>
